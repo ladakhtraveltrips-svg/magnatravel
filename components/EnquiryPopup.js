@@ -4,35 +4,73 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, LazyMotion, domAnimation, m } from "framer-motion";
 import { X } from "lucide-react";
 import EnquiryForm from "./EnquiryForm";
+import { OPEN_ENQUIRY_EVENT } from "./ClickTracker";
 import { LogoBadge } from "./Logo";
 
 const OPEN_DELAY_MS = 1500;
 const SEEN_KEY = "magna_enquiry_popup_seen";
 
+const wasSeen = () => {
+  try {
+    return sessionStorage.getItem(SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const markSeen = () => {
+  try {
+    sessionStorage.setItem(SEEN_KEY, "1");
+  } catch {}
+};
+
 /**
- * Enquiry form that opens automatically shortly after the page loads.
- * Shown once per browser session, closable with the X button, Esc or a click outside.
+ * Enquiry form popup.
+ *  - Opens automatically shortly after the page loads (once per browser session).
+ *  - Opens every time an "Enquire" / "Get Free Quote" button is clicked (see ClickTracker),
+ *    pre-filled with that button's package / destination.
+ * Closable with the X button, Esc or a click outside.
  */
 export default function EnquiryPopup() {
   const [open, setOpen] = useState(false);
+  const [prefill, setPrefill] = useState(null);
+  const [formKey, setFormKey] = useState(0);
   const dialogRef = useRef(null);
   const lastFocus = useRef(null);
 
+  // Auto-open once per session.
   useEffect(() => {
-    let seen = false;
-    try {
-      seen = sessionStorage.getItem(SEEN_KEY) === "1";
-    } catch {}
-    if (seen) return;
+    if (wasSeen()) return;
     const t = setTimeout(() => {
+      if (wasSeen()) return; // visitor already opened it from a button
       lastFocus.current = document.activeElement;
       setOpen(true);
-      try {
-        sessionStorage.setItem(SEEN_KEY, "1");
-      } catch {}
+      markSeen();
     }, OPEN_DELAY_MS);
     return () => clearTimeout(t);
   }, []);
+
+  // Open from any enquiry button.
+  useEffect(() => {
+    window.__magnaEnquiryPopup = true;
+    function onOpen(e) {
+      lastFocus.current = document.activeElement;
+      setPrefill(e.detail || null);
+      setFormKey((k) => k + 1); // fresh form with the new pre-filled values
+      setOpen(true);
+      markSeen();
+    }
+    window.addEventListener(OPEN_ENQUIRY_EVENT, onOpen);
+    return () => {
+      window.__magnaEnquiryPopup = false;
+      window.removeEventListener(OPEN_ENQUIRY_EVENT, onOpen);
+    };
+  }, []);
+
+  // What the visitor clicked on, shown under the heading (e.g. "Gulmarg tour", "Kashmir Honeymoon Package").
+  const selection = prefill?.destination
+    ? `${prefill.destination} tour`
+    : prefill?.message?.replace(/^I'm interested in:\s*/, "") ||
+      (prefill?.label && prefill.label !== "All Kashmir Packages" ? prefill.label : "");
 
   const close = useCallback(() => {
     setOpen(false);
@@ -108,11 +146,17 @@ export default function EnquiryPopup() {
                   <p id="popup-heading" className="font-display text-lg font-bold leading-tight text-navy sm:text-xl">
                     Get Your Free Kashmir Tour Quote
                   </p>
-                  <p className="mt-0.5 text-[13px] text-muted">Share your details, our team will call you back.</p>
+                  {selection ? (
+                    <p className="mt-1 inline-flex rounded-full bg-mint px-2.5 py-0.5 text-[12.5px] font-semibold text-primary">
+                      {selection}
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-[13px] text-muted">Share your details, our team will call you back.</p>
+                  )}
                 </div>
               </div>
 
-              <EnquiryForm idPrefix="popup-" formName="popup_enquiry" bare />
+              <EnquiryForm key={formKey} idPrefix="popup-" formName="popup_enquiry" bare prefill={prefill} />
             </m.div>
           </m.div>
         )}

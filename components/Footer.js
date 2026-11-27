@@ -125,6 +125,20 @@ export default function Footer({ linkPrefix = "" }) {
           </ul>
         </div>
       </div>
+
+      <div className="border-t border-white/10">
+        <p className="container-x py-4 text-center text-sm text-white/70 sm:text-[15px]">
+          Created by{" "}
+          <a
+            href="https://deenxconsultancy.com/"
+            target="_blank"
+            rel="noopener"
+            className="font-semibold text-accent underline-offset-4 transition-colors hover:text-white hover:underline"
+          >
+            DeenX Consultancy
+          </a>
+        </p>
+      </div>
     </footer>
   );
 }

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { validateEnquiry } from "@/lib/validation";
+import { isEmailConfigured, sendEnquiryEmail } from "@/lib/mailer";
+
+export const runtime = "nodejs"; // nodemailer needs the Node.js runtime
 
 /**
  * POST /api/enquiry
@@ -53,8 +56,9 @@ export async function POST(request) {
   }
 
   const webhook = process.env.ENQUIRY_WEBHOOK_URL;
-  if (!webhook) {
-    console.error("[enquiry] ENQUIRY_WEBHOOK_URL is not configured – lead was NOT stored.");
+  const emailOn = isEmailConfigured();
+  if (!webhook && !emailOn) {
+    console.error("[enquiry] Neither SMTP (email) nor ENQUIRY_WEBHOOK_URL is configured – lead was NOT stored.");
     return fail("Our online enquiry service is temporarily unavailable.", 503);
   }
 
@@ -71,6 +75,7 @@ export async function POST(request) {
     ...data,
     mobile: `+91${data.mobile}`,
     pageUrl: String(body.pageUrl || "").slice(0, 500),
+    formName: String(body.formName || "").replace(/[^\w-]/g, "").slice(0, 40),
     attribution,
     meta: {
       ip,
@@ -79,26 +84,35 @@ export async function POST(request) {
     },
   };
 
-  try {
-    const res = await fetch(webhook, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(process.env.ENQUIRY_WEBHOOK_TOKEN && { Authorization: `Bearer ${process.env.ENQUIRY_WEBHOOK_TOKEN}` }),
-      },
-      body: JSON.stringify(lead),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) {
-      console.error(`[enquiry] Webhook responded ${res.status}`);
-      return fail("We couldn't send your enquiry right now.", 502);
-    }
-  } catch (err) {
-    console.error("[enquiry] Webhook request failed:", err?.message);
+  // Deliver to every configured channel in parallel. The lead counts as received
+  // when at least one channel (email or webhook) accepted it.
+  const deliveries = [];
+  if (emailOn) deliveries.push(["email", sendEnquiryEmail(lead)]);
+  if (webhook) deliveries.push(["webhook", postToWebhook(webhook, lead)]);
+
+  const results = await Promise.allSettled(deliveries.map(([, p]) => p));
+  results.forEach((r, i) => {
+    if (r.status === "rejected") console.error(`[enquiry] ${deliveries[i][0]} delivery failed:`, r.reason?.message || r.reason);
+  });
+
+  if (!results.some((r) => r.status === "fulfilled")) {
     return fail("We couldn't send your enquiry right now.", 502);
   }
 
   return NextResponse.json({ ok: true, leadId }, { status: 201 });
+}
+
+async function postToWebhook(url, lead) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(process.env.ENQUIRY_WEBHOOK_TOKEN && { Authorization: `Bearer ${process.env.ENQUIRY_WEBHOOK_TOKEN}` }),
+    },
+    body: JSON.stringify(lead),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
 }
 
 export function GET() {

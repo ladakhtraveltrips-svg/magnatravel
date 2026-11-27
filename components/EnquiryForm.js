@@ -68,7 +68,7 @@ function buildWhatsAppMessage(v = {}) {
  * @param {string} formName  reported with the generate_lead event
  * @param {boolean} bare     render without the outer card (used inside the popup)
  */
-export default function EnquiryForm({ idPrefix = "", formName = "kashmir_enquiry", bare = false }) {
+export default function EnquiryForm({ idPrefix = "", formName = "kashmir_enquiry", bare = false, prefill = null }) {
   const fid = (name) => `${idPrefix}${name}`;
   const [status, setStatus] = useState({ state: "idle", message: "", leadId: null });
   const startedAt = useRef(Date.now());
@@ -82,7 +82,14 @@ export default function EnquiryForm({ idPrefix = "", formName = "kashmir_enquiry
     setValue,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm({ defaultValues: DEFAULTS, mode: "onTouched" });
+  } = useForm({
+    defaultValues: {
+      ...DEFAULTS,
+      // values passed in when the popup is opened from a package / destination button
+      ...Object.fromEntries(Object.entries(prefill || {}).filter(([k, v]) => v && k in DEFAULTS).map(([k, v]) => [k, String(v)])),
+    },
+    mode: "onTouched",
+  });
 
   const values = watch();
 
@@ -125,6 +132,7 @@ export default function EnquiryForm({ idPrefix = "", formName = "kashmir_enquiry
         body: JSON.stringify({
           ...data,
           source: "kashmir-tour-packages",
+          formName,
           startedAt: startedAt.current,
           pageUrl: window.location.href.split("#")[0],
           attribution: attribution.current,

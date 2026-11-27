@@ -22,11 +22,14 @@ npm run build && npm start   # production
 | `NEXT_PUBLIC_GTM_ID` | Google Tag Manager container (`GTM-XXXXXXX`). Nothing loads when empty |
 | `NEXT_PUBLIC_GOOGLE_ADS_ID` / `NEXT_PUBLIC_GOOGLE_ADS_LEAD_LABEL` | Optional direct Google Ads lead conversion. Skip these if you set up conversions in GTM |
 | `NEXT_PUBLIC_WHATSAPP_NUMBER` | WhatsApp number in international format, no `+` (default `919797567990`) |
-| `ENQUIRY_WEBHOOK_URL` | **Required for the form to work.** The URL that leads are POSTed to as JSON (CRM, Zapier/Make, Google Apps Script, etc.) |
+| `SMTP_USER` / `SMTP_PASS` | **Email delivery of every enquiry.** For Gmail use the address plus a 16-character App Password (Google Account → Security → 2-Step Verification → App passwords) |
+| `SMTP_HOST` / `SMTP_PORT` | Defaults to `smtp.gmail.com` / `465`. Change these for Hostinger, Zoho, cPanel and similar providers |
+| `ENQUIRY_TO_EMAIL` | Comma-separated inboxes that receive the enquiry emails (defaults to all three business emails) |
+| `ENQUIRY_WEBHOOK_URL` | Optional extra delivery: the URL that leads are POSTed to as JSON (CRM, Zapier/Make, Google Apps Script, etc.) |
 | `ENQUIRY_WEBHOOK_TOKEN` | Optional bearer token sent to the webhook |
 | `NEXT_PUBLIC_ENQUIRY_ENDPOINT` | Optional: post the form somewhere other than `/api/enquiry` |
 
-If `ENQUIRY_WEBHOOK_URL` is not set, the API returns 503 and the form shows an error with a WhatsApp fallback. It never shows a fake success.
+An enquiry counts as received when at least one channel (email or webhook) accepts it. If neither is configured the API returns 503, and if every channel fails it returns 502. In both cases the form shows an error with a WhatsApp fallback. It never shows a fake success.
 
 ## Adding images
 

@@ -112,7 +112,7 @@ export default function Header({ linkPrefix = "" }) {
                   </li>
                 ))}
                 <li className="pt-2">
-                  <a href={href("#enquiry")} onClick={() => setOpen(false)} className="btn-primary w-full">
+                  <a href={href("#enquiry")} data-popup="1" onClick={() => setOpen(false)} className="btn-primary w-full">
                     Get Free Quote
                   </a>
                 </li>
